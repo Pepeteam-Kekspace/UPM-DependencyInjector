@@ -7,6 +7,7 @@ namespace DependencyInjector.Core
 {
     public class FieldsReflectionInjector : IReflectionInjector
     {
+        private readonly Dictionary<Type, List<FieldInfo>> _cachedFields = new();
         private IDIContainer[] _diContainers;
 
         public Action<string> OnErrorThrown { get; set; }
@@ -18,16 +19,25 @@ namespace DependencyInjector.Core
 
             SetFields(objectToSetInjections, fields);
         }
-        
+
         private List<FieldInfo> GetFields(object objectToSetInjections)
         {
-            List<FieldInfo> fields = new List<FieldInfo>();
-            Type currentType = objectToSetInjections.GetType();
+            Type objectType = objectToSetInjections.GetType();
+
+            if (_cachedFields.TryGetValue(objectType, out List<FieldInfo> cached))
+                return cached;
+
+            List<FieldInfo> injectableFields = new List<FieldInfo>();
+            Type currentType = objectType;
             while (true)
             {
                 FieldInfo[] fieldInfos = currentType.GetFields(BindingFlags.NonPublic | BindingFlags.Instance);
 
-                fields.AddRange(fieldInfos);
+                foreach (FieldInfo field in fieldInfos)
+                {
+                    if (field.GetCustomAttribute<InjectAttribute>() != null)
+                        injectableFields.Add(field);
+                }
 
                 currentType = currentType.BaseType;
 
@@ -35,20 +45,14 @@ namespace DependencyInjector.Core
                     break;
             }
 
-            return fields;
+            _cachedFields[objectType] = injectableFields;
+            return injectableFields;
         }
-        
+
         private void SetFields(object objectToSetInjections, List<FieldInfo> fields)
         {
             foreach (var fieldInfo in fields)
-            {
-                object attribute = fieldInfo.GetCustomAttribute<InjectAttribute>();
-
-                if (ReferenceEquals(attribute, null))
-                    continue;
-
                 SetFieldValue(objectToSetInjections, fieldInfo);
-            }
         }
 
         private void SetFieldValue(object objectToSetInjections, FieldInfo fieldInfo)
