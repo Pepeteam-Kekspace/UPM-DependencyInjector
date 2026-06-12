@@ -52,11 +52,12 @@ namespace DependencyInjector.Installers
                 }
             }
 
-            IReflectionInjector[] reflectionInjectors = { new FieldsReflectionInjector() };
-            foreach (var reflectionInjector in reflectionInjectors)
-            {
-                reflectionInjector.OnErrorThrown += ThrowError;
-            }
+            if (!ServiceLocatorInstance.Instance.IsContained<FieldsReflectionInjector>())
+                ServiceLocatorInstance.Instance.Add(new FieldsReflectionInjector());
+
+            FieldsReflectionInjector fieldsReflectionInjector = ServiceLocatorInstance.Instance.Get<FieldsReflectionInjector>();
+            fieldsReflectionInjector.OnErrorThrown += ThrowError;
+            IReflectionInjector[] reflectionInjectors = { fieldsReflectionInjector };
 
             foreach (MonoInstaller monoInstaller in MonoInstallers)
             {
@@ -81,6 +82,7 @@ namespace DependencyInjector.Installers
 #endif
             
             injector.InjectAll();
+            fieldsReflectionInjector.OnErrorThrown -= ThrowError;
 
 #if UNITY_EDITOR
             _isInstalled = true;
